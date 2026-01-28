@@ -117,10 +117,10 @@ if($tab === 'notif'){
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
 <style>
-body { background:#f4f6f9; }
+body { background:#f4f6f9; padding-top: 60px;}
 
 /* Sidebar */
-.sidebar { min-height:100vh; background:#2c3e50; }
+.sidebar { min-height:100vh; background:#2c3e50; padding-top: 0px; }
 .sidebar .nav-link { color:#fff; padding:10px 16px; border-radius:8px; font-size:.95rem; }
 .sidebar .nav-link:hover, .sidebar .nav-link.active { background:#34495e; }
 
@@ -134,7 +134,7 @@ body { background:#f4f6f9; }
 .modern-card:hover { transform:translateY(-4px); }
 
 /* Navbar spacing */
-.main-content { padding-top:85px; }
+.main-content { padding-top:0px; }
 
 .table td, .table th { padding:0.55rem; vertical-align: middle; }
 </style>
@@ -146,7 +146,7 @@ body { background:#f4f6f9; }
 <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
   <div class="container-fluid">
     <button class="btn btn-outline-dark d-lg-none" data-bs-toggle="collapse" data-bs-target="#sidebarMenu">☰</button>
-    <span class="navbar-brand fw-bold ms-2">DO HIVES GENERAL MERCHANDISE</span>
+    <span class="navbar-brand fw-bold ms-2">DE ORO HIYS GENERAL MERCHANDISE</span>
 
     <div class="ms-auto dropdown">
       <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
@@ -179,8 +179,8 @@ body { background:#f4f6f9; }
 </a>
 <div class="collapse submenu" id="inventoryMenu">
 <a href="products.php">Products</a>
-<a href="../inventory/add_stock.php">Add Stock</a>
-<a href="../inventory/adjust_stock.php">Adjust Stock</a>
+<a href="../inventory/add_stock.php">Stock In (Receiving)</a>
+<a href="../inventory/adjust_stock.php">Stock Adjustments</a>
 <a href="../inventory/inventory.php">Inventory Logs</a>
 </div>
 </li>

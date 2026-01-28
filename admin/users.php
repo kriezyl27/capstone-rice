@@ -57,8 +57,8 @@ $users = $conn->query("SELECT user_id, username, first_name, last_name, phone, r
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
 <style>
-body { background:#f4f6f9; }
-.sidebar { min-height:100vh; background:#2c3e50; }
+body { background:#f4f6f9; padding-top: 60px; }
+.sidebar { min-height:100vh; background:#2c3e50; padding-top: 0px; }
 .sidebar .nav-link { color:#fff; padding:10px 16px; border-radius:8px; font-size:.95rem; }
 .sidebar .nav-link:hover,.sidebar .nav-link.active { background:#34495e; }
 .sidebar .submenu { padding-left:35px; }
@@ -66,7 +66,7 @@ body { background:#f4f6f9; }
 .sidebar .submenu a:hover { color:#fff; }
 .modern-card { border-radius:14px; box-shadow:0 6px 16px rgba(0,0,0,.12); transition:.3s; }
 .modern-card:hover { transform:translateY(-4px); }
-.main-content { padding-top:85px; }
+.main-content { padding-top:0px; }
 .bg-gradient-primary {background:linear-gradient(135deg,#1d2671,#c33764);}
 </style>
 </head>
@@ -77,7 +77,7 @@ body { background:#f4f6f9; }
 <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
   <div class="container-fluid">
     <button class="btn btn-outline-dark d-lg-none" data-bs-toggle="collapse" data-bs-target="#sidebarMenu">☰</button>
-    <span class="navbar-brand fw-bold ms-2">DO HIVES GENERAL MERCHANDISE</span>
+    <span class="navbar-brand fw-bold ms-2">DE ORO HIYS GENERAL MERCHANDISE</span>
 
     <div class="ms-auto dropdown">
       <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown"><?= htmlspecialchars($username) ?></a>
@@ -107,19 +107,18 @@ body { background:#f4f6f9; }
   </a>
   <div class="collapse submenu" id="inventoryMenu">
     <a href="products.php">Products</a>
-    <a href="../inventory/add_stock.php">Add Stock</a>
-    <a href="../inventory/adjust_stock.php">Adjust Stock</a>
+    <a href="../inventory/add_stock.php">Stock In (Receiving)</a>
+    <a href="../inventory/adjust_stock.php">Stock Adjustments</a>
     <a href="../inventory/inventory.php">Inventory Logs</a>
   </div>
 </li>
 
-<li class="nav-item"><a class="nav-link" href="sales.php"><i class="fas fa-cash-register me-2"></i>Sales</a></li>
-<li class="nav-item"><a class="nav-link" href="analytics.php"><i class="fas fa-chart-line me-2"></i>Analytics & Forecasting</a></li>
-
-<!-- ✅ NEW MENU ITEM -->
 <li class="nav-item">
   <a class="nav-link active" href="users.php"><i class="fas fa-users me-2"></i>User Management</a>
 </li>
+
+<li class="nav-item"><a class="nav-link" href="sales.php"><i class="fas fa-cash-register me-2"></i>Sales</a></li>
+<li class="nav-item"><a class="nav-link" href="analytics.php"><i class="fas fa-chart-line me-2"></i>Analytics & Forecasting</a></li>
 
 <li class="nav-item"><a class="nav-link" href="system_logs.php"><i class="fas fa-archive me-2"></i>System Logs</a></li>
 
@@ -187,7 +186,7 @@ body { background:#f4f6f9; }
                 <a class="btn btn-sm btn-outline-dark"
                    href="users.php?toggle=1&id=<?= (int)$u['user_id'] ?>"
                    onclick="return confirm('Change this user status?')">
-                   Toggle
+                   user status
                 </a>
               <?php endif; ?>
             </td>

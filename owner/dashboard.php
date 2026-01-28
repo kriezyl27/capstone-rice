@@ -14,14 +14,14 @@ include '../config/db.php';
 
 /* =========================
    OWNER DASHBOARD METRICS
-   (READ-ONLY)
+   (READ-ONLY + FINANCE VIEW)
 ========================= */
 
 // Total products (not archived)
 $totalProductsRow = $conn->query("SELECT COUNT(*) AS cnt FROM products WHERE archived=0");
 $totalProducts = $totalProductsRow ? (int)$totalProductsRow->fetch_assoc()['cnt'] : 0;
 
-// Total stock per product based on inventory_transactions (IN - OUT + ADJUST)
+// Total stock (estimated) from inventory_transactions (IN - OUT + ADJUST)
 $totalStockRow = $conn->query("
     SELECT IFNULL(SUM(
         CASE 
@@ -60,6 +60,25 @@ $revenueMonth = $salesMonthRow ? (float)$salesMonthRow->fetch_assoc()['revenue_m
 // Pending returns count
 $pendingReturnsRow = $conn->query("SELECT COUNT(*) AS cnt FROM returns WHERE LOWER(status)='pending'");
 $pendingReturns = $pendingReturnsRow ? (int)$pendingReturnsRow->fetch_assoc()['cnt'] : 0;
+
+/* =========================
+   AR / AP SUMMARY (OWNER)
+========================= */
+$arRow = $conn->query("
+  SELECT
+    IFNULL(SUM(total_amount),0) AS total_ar,
+    IFNULL(SUM(balance),0) AS balance_ar
+  FROM account_receivable
+");
+$ar = $arRow ? $arRow->fetch_assoc() : ['total_ar'=>0,'balance_ar'=>0];
+
+$apRow = $conn->query("
+  SELECT
+    IFNULL(SUM(total_amount),0) AS total_ap,
+    IFNULL(SUM(balance),0) AS balance_ap
+  FROM account_payable
+");
+$ap = $apRow ? $apRow->fetch_assoc() : ['total_ap'=>0,'balance_ap'=>0];
 
 // Top product (all-time sold kg)
 $topProductRow = $conn->query("
@@ -104,20 +123,16 @@ if($monthly){
     }
 }
 
-// Forecast placeholder: show a fake next-3-month projection based on last month (if available)
-$forecastLabels = [];
-$forecastValues = [];
+// Forecast placeholder
+$forecastLabels = ["Next Month","+2 Months","+3 Months"];
+$forecastValues = [0,0,0];
 if(count($salesData) > 0){
     $last = (float)$salesData[count($salesData)-1];
-    $forecastLabels = ["Next Month","+2 Months","+3 Months"];
     $forecastValues = [
         round($last * 1.03, 2),
         round($last * 1.05, 2),
         round($last * 1.08, 2),
     ];
-} else {
-    $forecastLabels = ["Next Month","+2 Months","+3 Months"];
-    $forecastValues = [0,0,0];
 }
 ?>
 <!DOCTYPE html>
@@ -132,19 +147,22 @@ if(count($salesData) > 0){
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-body { background:#f4f6f9; }
+body { background:#f4f6f9; padding-top: 60px; }
 
 /* Sidebar */
-.sidebar { min-height:100vh; background:#2c3e50; }
+.sidebar { min-height:100vh; background:#2c3e50; padding-top: 0; }
 .sidebar .nav-link { color:#fff; padding:10px 16px; border-radius:8px; font-size:.95rem; }
 .sidebar .nav-link:hover, .sidebar .nav-link.active { background:#34495e; }
+.sidebar .submenu { padding-left:35px; }
+.sidebar .submenu a { font-size:.9rem; padding:6px 0; display:block; color:#ecf0f1; text-decoration:none; }
+.sidebar .submenu a:hover { color:#fff; }
 
 /* Cards */
 .modern-card { border-radius:14px; box-shadow:0 6px 16px rgba(0,0,0,.12); transition:.3s; }
 .modern-card:hover { transform:translateY(-4px); }
 
 /* Navbar spacing */
-.main-content { padding-top:85px; }
+.main-content { padding-top:0; }
 
 /* Gradients */
 .bg-gradient-primary {background:linear-gradient(135deg,#1d2671,#c33764);}
@@ -164,14 +182,14 @@ body { background:#f4f6f9; }
 <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
   <div class="container-fluid">
     <button class="btn btn-outline-dark d-lg-none" data-bs-toggle="collapse" data-bs-target="#sidebarMenu">☰</button>
-    <span class="navbar-brand fw-bold ms-2">DO HIVES GENERAL MERCHANDISE</span>
+    <span class="navbar-brand fw-bold ms-2">DE ORO HIYS GENERAL MERCHANDISE</span>
 
     <div class="ms-auto dropdown">
-      <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+      <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">
         <?= htmlspecialchars($username) ?> <small class="text-muted">(Owner)</small>
       </a>
       <ul class="dropdown-menu dropdown-menu-end">
-        <li><a class="dropdown-item" href="../profile.php"><i class="fa-solid fa-user me-2"></i>Profile</a></li>
+        <li><a class="dropdown-item" href="profile.php"><i class="fa-solid fa-user me-2"></i>Profile</a></li>
         <li><a class="dropdown-item text-danger" href="../logout.php"><i class="fa-solid fa-right-from-bracket me-2"></i>Logout</a></li>
       </ul>
     </div>
@@ -181,7 +199,7 @@ body { background:#f4f6f9; }
 <div class="container-fluid">
 <div class="row">
 
-<!-- OWNER SIDEBAR (OWNER ONLY ICONS) -->
+<!-- OWNER SIDEBAR -->
 <nav id="sidebarMenu" class="col-lg-2 d-lg-block sidebar collapse">
   <div class="pt-4">
     <ul class="nav flex-column gap-1">
@@ -202,6 +220,16 @@ body { background:#f4f6f9; }
         <a class="nav-link" href="sales_report.php">
           <i class="fas fa-receipt me-2"></i>Sales Reports
         </a>
+      </li>
+
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#financeMenu">
+          <i class="fas fa-coins me-2"></i>Finance
+          <i class="fas fa-chevron-down float-end"></i>
+        </a>
+        <div class="collapse submenu" id="financeMenu">
+          <a href="../owner/supplier_payables.php">Supplier Payables</a>
+        </div>
       </li>
 
       <li class="nav-item">
@@ -227,7 +255,7 @@ body { background:#f4f6f9; }
     <div class="px-3 mt-4">
       <div class="alert alert-light small mb-0">
         <i class="fa-solid fa-circle-info me-1"></i>
-        Owner access is <b>view-only</b>.
+        Owner access is <b>monitoring + finance approval</b>.
       </div>
     </div>
   </div>
@@ -240,14 +268,14 @@ body { background:#f4f6f9; }
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
     <div>
       <h3 class="fw-bold mb-1">Owner Overview</h3>
-      <div class="text-muted">Monitoring & decision dashboard (read-only)</div>
+      <div class="text-muted">Monitoring & decision dashboard</div>
     </div>
     <span class="badge rounded-pill bg-dark px-3 py-2">
-      <i class="fa-solid fa-eye me-1"></i> View-only Access
+      <i class="fa-solid fa-chart-simple me-1"></i> Overview
     </span>
   </div>
 
-  <!-- SUMMARY CARDS -->
+  <!-- SUMMARY CARDS (NOW 6 CARDS) -->
   <div class="row g-4">
     <div class="col-12 col-md-6 col-xl-3">
       <div class="card modern-card bg-gradient-primary text-white p-4">
@@ -290,14 +318,57 @@ body { background:#f4f6f9; }
       <div class="card modern-card bg-gradient-warning text-dark p-4">
         <div class="d-flex justify-content-between align-items-center">
           <div>
+            <div class="fw-light">Revenue (This Month)</div>
+            <div class="h3 fw-bold mb-0">₱<?= number_format($revenueMonth,2) ?></div>
+            <div class="small">Based on sales records</div>
+          </div>
+          <i class="fas fa-chart-column fa-3x opacity-75"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- AR CARD -->
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="card modern-card bg-gradient-warning text-dark p-4">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <div class="fw-light">Accounts Receivable (AR)</div>
+            <div class="h4 fw-bold mb-0">₱<?= number_format((float)($ar['balance_ar'] ?? 0),2) ?></div>
+            <div class="small">Total: ₱<?= number_format((float)($ar['total_ar'] ?? 0),2) ?></div>
+          </div>
+          <i class="fas fa-hand-holding-dollar fa-3x opacity-75"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- AP CARD -->
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="card modern-card bg-gradient-danger text-white p-4">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <div class="fw-light">Accounts Payable (AP)</div>
+            <div class="h4 fw-bold mb-0">₱<?= number_format((float)($ap['balance_ap'] ?? 0),2) ?></div>
+            <div class="small opacity-75">Total: ₱<?= number_format((float)($ap['total_ap'] ?? 0),2) ?></div>
+          </div>
+          <i class="fas fa-file-invoice-dollar fa-3x opacity-75"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pending Returns -->
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="card modern-card bg-gradient-warning text-dark p-4">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
             <div class="fw-light">Pending Returns</div>
             <div class="display-6 fw-bold"><?= $pendingReturns ?></div>
-            <div class="small">Revenue (month): ₱<?= number_format($revenueMonth,2) ?></div>
+            <div class="small">Waiting for approval</div>
           </div>
           <i class="fas fa-rotate-left fa-3x opacity-75"></i>
         </div>
       </div>
     </div>
+
   </div>
 
   <!-- SECOND ROW -->
@@ -319,7 +390,7 @@ body { background:#f4f6f9; }
       </div>
     </div>
 
-    <!-- TOP PRODUCT + FORECAST PLACEHOLDER -->
+    <!-- TOP PRODUCT + FORECAST -->
     <div class="col-12 col-xl-5">
       <div class="card modern-card mb-4">
         <div class="card-body">
@@ -383,8 +454,16 @@ body { background:#f4f6f9; }
                   $dt = $row['created_at'] ? date("M d, Y h:i A", strtotime($row['created_at'])) : '';
                   $prod = trim(($row['variety'] ?? 'N/A') . " - " . ($row['grade'] ?? ''));
                   $t = strtolower(trim($row['type'] ?? ''));
-                  $sign = ($t === 'in') ? '+' : (($t === 'out') ? '-' : '');
-                  $qty = $sign . number_format((float)$row['qty_kg'],2) . " kg";
+                  $qtyNum = (float)($row['qty_kg'] ?? 0);
+
+                  if($t === 'adjust'){
+                      $sign = ($qtyNum >= 0) ? '+' : '-';
+                      $qty = $sign . number_format(abs($qtyNum),2) . " kg";
+                  } else {
+                      $sign = ($t === 'in') ? '+' : (($t === 'out') ? '-' : '');
+                      $qty = $sign . number_format(abs($qtyNum),2) . " kg";
+                  }
+
                   $ref = strtoupper((string)($row['reference_type'] ?? ''));
                   $refId = $row['reference_id'] !== null ? ("#".$row['reference_id']) : '';
                   $note = $row['note'] ?? '';
@@ -402,7 +481,7 @@ body { background:#f4f6f9; }
                       <span class="badge bg-secondary"><?= htmlspecialchars(strtoupper($t ?: 'N/A')) ?></span>
                     <?php endif; ?>
                   </td>
-                  <td><?= htmlspecialchars($ref . " " . $refId) ?></td>
+                  <td><?= htmlspecialchars(trim($ref . " " . $refId)) ?></td>
                   <td><?= htmlspecialchars($note) ?></td>
                 </tr>
               <?php endwhile; ?>

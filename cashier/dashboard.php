@@ -101,11 +101,11 @@ $stmt->close();
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
 <style>
-body{background:#f4f6f9;}
-.sidebar{min-height:100vh;background:#2c3e50;}
+body{background:#f4f6f9; padding-top:60px;}
+.sidebar{min-height:100vh;background:#2c3e50; padding-top: 0px;}
 .sidebar .nav-link{color:#fff;padding:10px 16px;border-radius:8px;font-size:.95rem;}
 .sidebar .nav-link:hover,.sidebar .nav-link.active{background:#34495e;}
-.main-content{padding-top:85px;}
+.main-content{padding-top:0px;}
 .modern-card{border-radius:14px;box-shadow:0 6px 16px rgba(0,0,0,.12);transition:.3s;}
 .modern-card:hover{transform:translateY(-4px);}
 .bg-gradient-primary{background:linear-gradient(135deg,#1d2671,#c33764);}
@@ -119,7 +119,7 @@ body{background:#f4f6f9;}
 <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
 <div class="container-fluid">
 <button class="btn btn-outline-dark d-lg-none" data-bs-toggle="collapse" data-bs-target="#sidebarMenu">☰</button>
-<span class="navbar-brand fw-bold ms-2">DO HIVES GENERAL MERCHANDISE</span>
+<span class="navbar-brand fw-bold ms-2">DE ORO HIYS GENERAL MERCHANDISE</span>
 
 <div class="ms-auto dropdown">
 <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
@@ -140,10 +140,11 @@ body{background:#f4f6f9;}
 <div class="pt-4">
 <ul class="nav flex-column gap-1 px-2">
 <li class="nav-item"><a class="nav-link active" href="dashboard.php"><i class="fas fa-home me-2"></i>Dashboard</a></li>
-<li class="nav-item"><a class="nav-link" href="pos.php"><i class="fas fa-cash-register me-2"></i>New Sale (POS)</a></li>
+<li class="nav-item"><a class="nav-link" href="pos.php"><i class="fas fa-cash-register me-2"></i>Sale</a></li>
 <li class="nav-item"><a class="nav-link" href="sales_history.php"><i class="fas fa-receipt me-2"></i>Sales History</a></li>
-<li class="nav-item"><a class="nav-link" href="utang.php"><i class="fas fa-hand-holding-dollar me-2"></i>Utang / AR</a></li>
+<li class="nav-item"><a class="nav-link" href="payments.php"><i class="fas fa-hand-holding-dollar me-2"></i>Utang Payments</a></li>
 <li class="nav-item"><a class="nav-link" href="returns.php"><i class="fas fa-rotate-left me-2"></i>Returns</a></li>
+<li class="nav-item"><a class="nav-link" href="customers.php"><i class="fas fa-users me-2"></i>Customers</a></li>
 <li class="nav-item"><a class="nav-link" href="inventory_view.php"><i class="fas fa-boxes-stacked me-2"></i>Inventory View</a></li>
 </ul>
 </div>

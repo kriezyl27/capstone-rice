@@ -1,20 +1,21 @@
 <?php
 session_start();
 if(!isset($_SESSION['user_id'])){
-    header("Location: login.php");
+    header("Location: ../login.php");
     exit;
 }
+
 $username = $_SESSION['username'] ?? 'User';
 $role = $_SESSION['role'] ?? '';
 include '../config/db.php';
 
 // Optional: restrict this dashboard to admin only
-// if($role !== 'admin'){ header("Location: ../cashier/dashboard.php"); exit; }
+// if(strtolower($role) !== 'admin'){ header("Location: ../cashier/dashboard.php"); exit; }
 
 /* =========================
-   INVENTORY SUMMARY (FIXED)
+   INVENTORY SUMMARY
 ========================= */
-// Total products (no duplicates)
+// Total products
 $totalProductsRow = $conn->query("
     SELECT COUNT(*) AS total_products
     FROM products
@@ -28,12 +29,12 @@ $totalStockRow = $conn->query("
     WHERE archived=0
 ")->fetch_assoc();
 
-// Total IN/OUT/ADJUST from transaction logs
+// Total IN/OUT/ADJUST from transaction logs (DB enums are lowercase)
 $flowRow = $conn->query("
     SELECT
-        IFNULL(SUM(CASE WHEN type='IN' THEN qty_kg ELSE 0 END),0) AS total_in,
-        IFNULL(SUM(CASE WHEN type='OUT' THEN qty_kg ELSE 0 END),0) AS total_out,
-        IFNULL(SUM(CASE WHEN type='ADJUST' OR reference_type='ADJUSTMENT' THEN qty_kg ELSE 0 END),0) AS total_adjust
+        IFNULL(SUM(CASE WHEN type='in' THEN qty_kg ELSE 0 END),0) AS total_in,
+        IFNULL(SUM(CASE WHEN type='out' THEN qty_kg ELSE 0 END),0) AS total_out,
+        IFNULL(SUM(CASE WHEN type='adjust' THEN qty_kg ELSE 0 END),0) AS total_adjust
     FROM inventory_transactions
 ")->fetch_assoc();
 
@@ -46,22 +47,40 @@ $inventory = [
 ];
 
 /* =========================
-   AR & AP
+   AR & AP (Option C: TOTAL + OUTSTANDING)
 ========================= */
-$ar_summary = $conn->query("
-SELECT IFNULL(SUM(total_amount),0) AS total_ar,
-       IFNULL(SUM(balance),0) AS balance_ar
+// AR Total (all records)
+$ar_total = $conn->query("
+SELECT 
+    IFNULL(SUM(total_amount),0) AS total_ar
 FROM account_receivable
 ")->fetch_assoc();
 
-$ap_summary = $conn->query("
-SELECT IFNULL(SUM(total_amount),0) AS total_ap,
-       IFNULL(SUM(balance),0) AS balance_ap
+// AR Outstanding (balances only)
+$ar_outstanding = $conn->query("
+SELECT 
+    IFNULL(SUM(balance),0) AS balance_ar
+FROM account_receivable
+WHERE LOWER(status) IN ('unpaid','partial','overdue','pending','approved')
+")->fetch_assoc();
+
+// AP Total (all records)
+$ap_total = $conn->query("
+SELECT 
+    IFNULL(SUM(total_amount),0) AS total_ap
 FROM account_payable
 ")->fetch_assoc();
 
+// AP Outstanding (balances only)
+$ap_outstanding = $conn->query("
+SELECT 
+    IFNULL(SUM(balance),0) AS balance_ap
+FROM account_payable
+WHERE LOWER(status) IN ('unpaid','partial','overdue','pending','approved')
+")->fetch_assoc();
+
 /* =========================
-   NOTIFICATIONS (CASE SAFE)
+   NOTIFICATIONS (case safe)
 ========================= */
 $notif_summary = $conn->query("
 SELECT COUNT(*) AS total_sent,
@@ -92,10 +111,10 @@ LIMIT 5
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
 <style>
-body { background:#f4f6f9; }
+body { background:#f4f6f9; padding-top: 60px;  }
 
 /* Sidebar */
-.sidebar { min-height:100vh; background:#2c3e50; }
+.sidebar { min-height:100vh; background:#2c3e50; padding-top: 0px; }
 .sidebar .nav-link { color:#fff; padding:10px 16px; border-radius:8px; font-size:.95rem; }
 .sidebar .nav-link:hover, .sidebar .nav-link.active { background:#34495e; }
 
@@ -109,7 +128,7 @@ body { background:#f4f6f9; }
 .modern-card:hover { transform:translateY(-4px); }
 
 /* Navbar spacing */
-.main-content { padding-top:85px; }
+.main-content { padding-top:0px; }
 
 /* Gradients */
 .bg-gradient-primary {background:linear-gradient(135deg,#1d2671,#c33764);}
@@ -126,15 +145,15 @@ body { background:#f4f6f9; }
 <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
   <div class="container-fluid">
     <button class="btn btn-outline-dark d-lg-none" data-bs-toggle="collapse" data-bs-target="#sidebarMenu">☰</button>
-    <span class="navbar-brand fw-bold ms-2">DO HIVES GENERAL MERCHANDISE</span>
+    <span class="navbar-brand fw-bold ms-2">DE ORO HIYS GENERAL MERCHANDISE</span>
 
     <div class="ms-auto dropdown">
-      <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+      <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">
         <?= htmlspecialchars($username) ?>
       </a>
       <ul class="dropdown-menu dropdown-menu-end">
         <li><a class="dropdown-item" href="profile.php">Profile</a></li>
-        <li><a class="dropdown-item text-danger" href="logout.php">Logout</a></li>
+        <li><a class="dropdown-item text-danger" href="../logout.php">Logout</a></li>
       </ul>
     </div>
   </div>
@@ -159,8 +178,8 @@ body { background:#f4f6f9; }
 </a>
 <div class="collapse submenu" id="inventoryMenu">
 <a href="products.php">Products</a>
-<a href="../inventory/add_stock.php">Add Stock</a>
-<a href="../inventory/adjust_stock.php">Adjust Stock</a>
+<a href="../inventory/add_stock.php">Stock In (Receiving)</a>
+<a href="../inventory/adjust_stock.php">Stock Adjustment</a>
 <a href="../inventory/inventory.php">Inventory Logs</a>
 </div>
 </li>
@@ -215,16 +234,16 @@ body { background:#f4f6f9; }
   <div class="col-md-4">
     <div class="card modern-card bg-gradient-warning text-dark p-3">
       <h6>Accounts Receivable (AR)</h6>
-      <p class="mb-0">Total: ₱<?= number_format((float)($ar_summary['total_ar'] ?? 0),2) ?></p>
-      <p class="mb-0">Balance: ₱<?= number_format((float)($ar_summary['balance_ar'] ?? 0),2) ?></p>
+      <p class="mb-0">Total: ₱<?= number_format((float)($ar_total['total_ar'] ?? 0),2) ?></p>
+      <p class="mb-0">Outstanding: ₱<?= number_format((float)($ar_outstanding['balance_ar'] ?? 0),2) ?></p>
     </div>
   </div>
 
   <div class="col-md-4">
     <div class="card modern-card bg-gradient-danger text-white p-3">
       <h6>Accounts Payable (AP)</h6>
-      <p class="mb-0">Total: ₱<?= number_format((float)($ap_summary['total_ap'] ?? 0),2) ?></p>
-      <p class="mb-0">Balance: ₱<?= number_format((float)($ap_summary['balance_ap'] ?? 0),2) ?></p>
+      <p class="mb-0">Total: ₱<?= number_format((float)($ap_total['total_ap'] ?? 0),2) ?></p>
+      <p class="mb-0">Outstanding: ₱<?= number_format((float)($ap_outstanding['balance_ap'] ?? 0),2) ?></p>
     </div>
   </div>
 

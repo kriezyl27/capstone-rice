@@ -28,15 +28,13 @@ if(!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) $from = date('Y-m-01');
 if(!preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) $to = date('Y-m-d');
 
 /* =========================
-SUMMARY (CONNECTED TO POS)
-POS saves: paid / unpaid
+SUMMARY
 ========================= */
 $where = "WHERE DATE(s.sale_date) BETWEEN ? AND ? AND (s.status IS NULL OR LOWER(s.status) <> 'cancelled')";
 $params = [$from, $to];
 $types = "ss";
 
 if($status !== 'all'){
-// If status is cancelled, show only cancelled
 if($status === 'cancelled'){
 $where = "WHERE DATE(s.sale_date) BETWEEN ? AND ? AND LOWER(IFNULL(s.status,'')) = 'cancelled'";
 } else {
@@ -59,8 +57,7 @@ $summary = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 /* =========================
-SALES LIST (CONNECTED)
-includes cashier + customer
+SALES LIST
 ========================= */
 $stmt = $conn->prepare("
 SELECT
@@ -107,10 +104,10 @@ return 'bg-secondary';
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
 <style>
-body { background:#f4f6f9; }
+body { background:#f4f6f9; padding-top: 60px; }
 
 /* Sidebar */
-.sidebar { min-height:100vh; background:#2c3e50; }
+.sidebar { min-height:100vh; background:#2c3e50; padding-top: 0px; }
 .sidebar .nav-link { color:#fff; padding:10px 16px; border-radius:8px; font-size:.95rem; }
 .sidebar .nav-link:hover, .sidebar .nav-link.active { background:#34495e; }
 
@@ -124,11 +121,15 @@ body { background:#f4f6f9; }
 .modern-card:hover { transform:translateY(-4px); }
 
 /* Navbar spacing */
-.main-content { padding-top:85px; }
+.main-content { padding-top:0px; }
 
 /* Gradients */
 .bg-gradient-primary {background:linear-gradient(135deg,#1d2671,#c33764);}
 .bg-gradient-success {background:linear-gradient(135deg,#11998e,#38ef7d);}
+
+/* ✅ Modal safety (para di mag glitch/backdrop issues) */
+.modal { z-index: 1055; }
+.modal-backdrop { z-index: 1050; }
 </style>
 </head>
 
@@ -138,7 +139,7 @@ body { background:#f4f6f9; }
 <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
 <div class="container-fluid">
 <button class="btn btn-outline-dark d-lg-none" data-bs-toggle="collapse" data-bs-target="#sidebarMenu">☰</button>
-<span class="navbar-brand fw-bold ms-2">DO HIVES GENERAL MERCHANDISE</span>
+<span class="navbar-brand fw-bold ms-2">DE ORO HIYS GENERAL MERCHANDISE</span>
 
 <div class="ms-auto dropdown">
 <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
@@ -171,8 +172,8 @@ body { background:#f4f6f9; }
 </a>
 <div class="collapse submenu" id="inventoryMenu">
 <a href="products.php">Products</a>
-<a href="../inventory/add_stock.php">Add Stock</a>
-<a href="../inventory/adjust_stock.php">Adjust Stock</a>
+<a href="../inventory/add_stock.php">Stock In (Receiving)</a>
+<a href="../inventory/adjust_stock.php">Stock Adjustments</a>
 <a href="../inventory/inventory.php">Inventory Logs</a>
 </div>
 </li>
@@ -300,18 +301,21 @@ View
 </button>
 </td>
 </tr>
-
-<!-- DETAILS MODAL -->
-<div class="modal fade" id="saleModal<?= (int)$row['sale_id'] ?>" tabindex="-1">
-<div class="modal-dialog modal-lg modal-dialog-scrollable">
-<div class="modal-content">
-<div class="modal-header">
-<h5 class="modal-title">Sale #<?= (int)$row['sale_id'] ?> Details</h5>
-<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<?php endforeach; ?>
+<?php else: ?>
+<tr><td colspan="7" class="text-center text-muted">No sales found for your filters.</td></tr>
+<?php endif; ?>
+</tbody>
+</table>
 </div>
-<div class="modal-body">
+</div>
+
+<!-- ✅ MODALS OUTSIDE TABLE (fix glitch) -->
+<?php if(count($salesRows) > 0): ?>
+<?php foreach($salesRows as $row): ?>
 <?php
 $saleId = (int)$row['sale_id'];
+$st = strtolower(trim($row['status'] ?? ''));
 $itemsStmt = $conn->prepare("
 SELECT si.qty_kg, si.unit_price, si.line_total,
 p.variety, p.grade, p.sku
@@ -323,6 +327,15 @@ $itemsStmt->bind_param("i", $saleId);
 $itemsStmt->execute();
 $itemsRes = $itemsStmt->get_result();
 ?>
+<div class="modal fade" id="saleModal<?= (int)$row['sale_id'] ?>" tabindex="-1" aria-hidden="true">
+<div class="modal-dialog modal-lg modal-dialog-scrollable">
+<div class="modal-content">
+<div class="modal-header">
+<h5 class="modal-title">Sale #<?= (int)$row['sale_id'] ?> Details</h5>
+<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+</div>
+<div class="modal-body">
+
 <div class="row g-2 mb-3">
 <div class="col-md-4"><b>Cashier:</b> <?= h($row['cashier_username'] ?? 'N/A') ?></div>
 <div class="col-md-4"><b>Customer:</b> <?= h(trim($row['customer_name'] ?? '') ?: 'Walk-in') ?></div>
@@ -359,7 +372,7 @@ $itemsRes = $itemsStmt->get_result();
 </tbody>
 </table>
 </div>
-<?php $itemsStmt->close(); ?>
+
 </div>
 <div class="modal-footer">
 <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -367,18 +380,16 @@ $itemsRes = $itemsStmt->get_result();
 </div>
 </div>
 </div>
-
+<?php $itemsStmt->close(); ?>
 <?php endforeach; ?>
-<?php else: ?>
-<tr><td colspan="7" class="text-center text-muted">No sales found for your filters.</td></tr>
 <?php endif; ?>
-</tbody>
-</table>
-</div>
-</div>
 
 </main>
+
+</div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
+    

@@ -9,7 +9,29 @@ include '../config/db.php';
 $days = (int)($_GET['days'] ?? 30);
 if(!in_array($days, [7,30,90])) $days = 30;
 
-// Activity Logs
+/* =========================
+   Helpers (safe checks)
+========================= */
+function tableExists(mysqli $conn, string $table): bool {
+  $tableEsc = $conn->real_escape_string($table);
+  $dbRes = $conn->query("SELECT DATABASE() AS dbname");
+  $db = $dbRes ? ($dbRes->fetch_assoc()['dbname'] ?? '') : '';
+  $dbEsc = $conn->real_escape_string($db);
+
+  $q = $conn->query("
+    SELECT 1
+    FROM information_schema.TABLES
+    WHERE TABLE_SCHEMA = '$dbEsc' AND TABLE_NAME = '$tableEsc'
+    LIMIT 1
+  ");
+  return $q && $q->num_rows > 0;
+}
+
+$hasSupplierPayments = tableExists($conn, "supplier_payments");
+
+/* =========================
+   Activity Logs
+========================= */
 $activity = $conn->query("
   SELECT al.activity_id, al.created_at, al.activity_type, al.description,
          CONCAT(u.first_name,' ',u.last_name) AS user_name, u.role
@@ -20,7 +42,9 @@ $activity = $conn->query("
   LIMIT 200
 ");
 
-// Login Logs
+/* =========================
+   Login Logs
+========================= */
 $login = $conn->query("
   SELECT ll.log_id, ll.login_time, ll.device_info, ll.ip_address,
          CONCAT(u.first_name,' ',u.last_name) AS user_name, u.role
@@ -31,7 +55,9 @@ $login = $conn->query("
   LIMIT 200
 ");
 
-// Payment Logs (payments + payment_request + push_notif_logs)
+/* =========================
+   Payment / Notification Logs
+========================= */
 $payments = $conn->query("
   SELECT p.payment_id, p.sale_id, p.amount, p.method, p.status, p.paid_at, p.external_ref
   FROM payments p
@@ -55,6 +81,48 @@ $push = $conn->query("
   ORDER BY pn.sent_at DESC
   LIMIT 200
 ");
+
+/* =========================
+   FINANCE LOGS (AP / AR)
+   Works even without activity_logs logging
+========================= */
+
+// AR list (Receivable)
+$ar = $conn->query("
+  SELECT ar.ar_id, ar.sales_id, ar.customer_id, ar.total_amount, ar.amount_paid, ar.balance,
+         ar.due_date, ar.status, ar.created_at,
+         CONCAT(c.first_name,' ',c.last_name) AS customer_name
+  FROM account_receivable ar
+  LEFT JOIN customers c ON c.customer_id = ar.customer_id
+  WHERE ar.created_at >= DATE_SUB(NOW(), INTERVAL $days DAY)
+  ORDER BY ar.created_at DESC
+  LIMIT 200
+");
+
+// AP list (Payable)
+$ap = $conn->query("
+  SELECT ap.ap_id, ap.purchase_id, ap.supplier_id, ap.total_amount, ap.amount_paid, ap.balance,
+         ap.due_date, ap.status, ap.created_at,
+         s.name AS supplier_name
+  FROM account_payable ap
+  LEFT JOIN suppliers s ON s.supplier_id = ap.supplier_id
+  WHERE ap.created_at >= DATE_SUB(NOW(), INTERVAL $days DAY)
+  ORDER BY ap.created_at DESC
+  LIMIT 200
+");
+
+// Supplier payment history (optional)
+$supplierPayments = null;
+if($hasSupplierPayments){
+  $supplierPayments = $conn->query("
+    SELECT sp.*, sup.name AS supplier_name
+    FROM supplier_payments sp
+    LEFT JOIN suppliers sup ON sup.supplier_id = sp.supplier_id
+    WHERE sp.paid_at >= DATE_SUB(NOW(), INTERVAL $days DAY)
+    ORDER BY sp.paid_at DESC
+    LIMIT 200
+  ");
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -67,24 +135,37 @@ $push = $conn->query("
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
 <style>
-body { background:#f4f6f9; }
-.sidebar { min-height:100vh; background:#2c3e50; }
+body { background:#f4f6f9; padding-top: 60px}
+.sidebar { min-height:100vh; background:#2c3e50; padding-top: 0px; }
 .sidebar .nav-link { color:#fff; padding:10px 16px; border-radius:8px; font-size:.95rem; }
 .sidebar .nav-link:hover, .sidebar .nav-link.active { background:#34495e; }
 
 .modern-card { border-radius:14px; box-shadow:0 6px 16px rgba(0,0,0,.12); }
-.main-content { padding-top:85px; }
+.main-content { padding-top:0px; }
 
 .table td, .table th { padding:0.55rem; vertical-align: middle; }
+@media print { .sidebar, .navbar, .no-print { display:none !important; } body{padding-top:0} }
+/* Finance dropdown submenu */
+.sidebar .submenu { padding-left: 35px; }
+.sidebar .submenu a {
+  font-size: .9rem;
+  padding: 6px 0;
+  display: block;
+  color: #ecf0f1;
+  text-decoration: none;
+}
+.sidebar .submenu a:hover { color:#fff; }
+.sidebar .submenu a.active-sub { font-weight:700; color:#fff; }
+
 </style>
 </head>
 <body>
 
 <!-- TOP NAVBAR -->
-<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
+<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top no-print">
   <div class="container-fluid">
     <button class="btn btn-outline-dark d-lg-none" data-bs-toggle="collapse" data-bs-target="#sidebarMenu">☰</button>
-    <span class="navbar-brand fw-bold ms-2">DO HIVES GENERAL MERCHANDISE</span>
+    <span class="navbar-brand fw-bold ms-2">DE ORO HIYS GENERAL MERCHANDISE</span>
 
     <div class="ms-auto dropdown">
       <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
@@ -101,15 +182,63 @@ body { background:#f4f6f9; }
 <div class="row">
 
 <!-- SIDEBAR -->
+<!-- SIDEBAR -->
 <nav id="sidebarMenu" class="col-lg-2 d-lg-block sidebar collapse">
   <div class="pt-4">
     <ul class="nav flex-column gap-1">
-      <li class="nav-item"><a class="nav-link" href="dashboard.php"><i class="fas fa-gauge-high me-2"></i>Owner Dashboard</a></li>
-      <li class="nav-item"><a class="nav-link" href="inventory_monitoring.php"><i class="fas fa-boxes-stacked me-2"></i>Inventory Monitoring</a></li>
-      <li class="nav-item"><a class="nav-link" href="sales_report.php"><i class="fas fa-receipt me-2"></i>Sales Reports</a></li>
-      <li class="nav-item"><a class="nav-link" href="returns_report.php"><i class="fas fa-rotate-left me-2"></i>Returns Report</a></li>
-      <li class="nav-item"><a class="nav-link" href="analytics.php"><i class="fas fa-chart-line me-2"></i>Analytics & Forecasting</a></li>
-      <li class="nav-item"><a class="nav-link active" href="system_logs.php"><i class="fas fa-file-shield me-2"></i>System Logs</a></li>
+
+      <li class="nav-item">
+        <a class="nav-link" href="dashboard.php">
+          <i class="fas fa-gauge-high me-2"></i>Owner Dashboard
+        </a>
+      </li>
+
+      <li class="nav-item">
+        <a class="nav-link" href="inventory_monitoring.php">
+          <i class="fas fa-boxes-stacked me-2"></i>Inventory Monitoring
+        </a>
+      </li>
+
+      <li class="nav-item">
+        <a class="nav-link" href="sales_report.php">
+          <i class="fas fa-receipt me-2"></i>Sales Reports
+        </a>
+      </li>
+
+      <!-- ✅ FINANCE DROPDOWN -->
+      <?php $isFinance = in_array(basename($_SERVER['PHP_SELF']), ['supplier_payables.php','customer_receivables.php']); ?>
+      <li class="nav-item">
+        <a class="nav-link <?= $isFinance ? 'active' : '' ?>" data-bs-toggle="collapse" href="#financeMenu" role="button"
+           aria-expanded="<?= $isFinance ? 'true' : 'false' ?>" aria-controls="financeMenu">
+          <i class="fas fa-coins me-2"></i>Finance
+          <i class="fas fa-chevron-down float-end"></i>
+        </a>
+
+        <div class="collapse submenu <?= $isFinance ? 'show' : '' ?>" id="financeMenu">
+          <a href="supplier_payables.php" class="<?= basename($_SERVER['PHP_SELF'])==='supplier_payables.php' ? 'active-sub' : '' ?>">
+            Supplier Payables (AP)
+          </a>
+        </div>
+      </li>
+
+      <li class="nav-item">
+        <a class="nav-link" href="returns_report.php">
+          <i class="fas fa-rotate-left me-2"></i>Returns Report
+        </a>
+      </li>
+
+      <li class="nav-item">
+        <a class="nav-link active" href="analytics.php">
+          <i class="fas fa-chart-line me-2"></i>Analytics & Forecasting
+        </a>
+      </li>
+
+      <li class="nav-item">
+        <a class="nav-link" href="system_logs.php">
+          <i class="fas fa-file-shield me-2"></i>System Logs
+        </a>
+      </li>
+
     </ul>
 
     <div class="px-3 mt-4">
@@ -119,6 +248,7 @@ body { background:#f4f6f9; }
     </div>
   </div>
 </nav>
+
 
 <!-- MAIN -->
 <main class="col-lg-10 ms-sm-auto px-4 main-content">
@@ -130,7 +260,7 @@ body { background:#f4f6f9; }
       <div class="text-muted">Track activity and access history (read-only).</div>
     </div>
 
-    <div class="d-flex gap-2 align-items-center">
+    <div class="d-flex gap-2 align-items-center no-print">
       <form method="get" class="d-flex gap-2 align-items-center">
         <select class="form-select" name="days" onchange="this.form.submit()">
           <option value="7"  <?= $days===7?'selected':'' ?>>Last 7 days</option>
@@ -158,6 +288,13 @@ body { background:#f4f6f9; }
         <li class="nav-item" role="presentation">
           <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-pay" type="button">
             <i class="fa-solid fa-bell me-1"></i> Payment / Notification Logs
+          </button>
+        </li>
+
+        <!-- NEW TAB -->
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-finance" type="button">
+            <i class="fa-solid fa-coins me-1"></i> Finance Logs (AR/AP)
           </button>
         </li>
       </ul>
@@ -354,6 +491,158 @@ body { background:#f4f6f9; }
                   </tbody>
                 </table>
               </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ✅ NEW: FINANCE LOGS -->
+        <div class="tab-pane fade" id="tab-finance">
+          <div class="row g-4">
+
+            <!-- AR -->
+            <div class="col-12">
+              <h6 class="fw-bold mb-2"><i class="fa-solid fa-hand-holding-dollar me-1"></i> Accounts Receivable (AR)</h6>
+              <div class="table-responsive">
+                <table class="table table-striped align-middle mb-0">
+                  <thead class="table-dark">
+                    <tr>
+                      <th>Date</th>
+                      <th>AR #</th>
+                      <th>Sale #</th>
+                      <th>Customer</th>
+                      <th class="text-end">Total</th>
+                      <th class="text-end">Paid</th>
+                      <th class="text-end">Balance</th>
+                      <th>Due</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php if($ar && $ar->num_rows>0): ?>
+                      <?php while($r=$ar->fetch_assoc()): ?>
+                        <?php
+                          $st = strtolower(trim($r['status'] ?? ''));
+                          $badge = 'bg-secondary';
+                          if($st==='paid') $badge='bg-success';
+                          elseif($st==='partial') $badge='bg-warning text-dark';
+                          elseif($st==='unpaid' || $st==='overdue') $badge='bg-danger';
+                        ?>
+                        <tr>
+                          <td><?= htmlspecialchars(date("M d, Y h:i A", strtotime($r['created_at']))) ?></td>
+                          <td class="fw-semibold">#<?= (int)$r['ar_id'] ?></td>
+                          <td>#<?= (int)$r['sales_id'] ?></td>
+                          <td><?= htmlspecialchars($r['customer_name'] ?: '—') ?></td>
+                          <td class="text-end">₱<?= number_format((float)$r['total_amount'],2) ?></td>
+                          <td class="text-end">₱<?= number_format((float)$r['amount_paid'],2) ?></td>
+                          <td class="text-end fw-bold">₱<?= number_format((float)$r['balance'],2) ?></td>
+                          <td><?= htmlspecialchars($r['due_date'] ?: '—') ?></td>
+                          <td><span class="badge <?= $badge ?>"><?= htmlspecialchars(strtoupper($st ?: 'N/A')) ?></span></td>
+                        </tr>
+                      <?php endwhile; ?>
+                    <?php else: ?>
+                      <tr><td colspan="9" class="text-center text-muted">No AR records found.</td></tr>
+                    <?php endif; ?>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- AP -->
+            <div class="col-12">
+              <h6 class="fw-bold mb-2 mt-2"><i class="fa-solid fa-file-invoice-dollar me-1"></i> Accounts Payable (AP)</h6>
+              <div class="table-responsive">
+                <table class="table table-striped align-middle mb-0">
+                  <thead class="table-dark">
+                    <tr>
+                      <th>Date</th>
+                      <th>AP #</th>
+                      <th>Purchase #</th>
+                      <th>Supplier</th>
+                      <th class="text-end">Total</th>
+                      <th class="text-end">Paid</th>
+                      <th class="text-end">Balance</th>
+                      <th>Due</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php if($ap && $ap->num_rows>0): ?>
+                      <?php while($r=$ap->fetch_assoc()): ?>
+                        <?php
+                          $st = strtolower(trim($r['status'] ?? ''));
+                          $badge = 'bg-secondary';
+                          if($st==='paid') $badge='bg-success';
+                          elseif($st==='partial') $badge='bg-warning text-dark';
+                          elseif($st==='unpaid' || $st==='overdue') $badge='bg-danger';
+                        ?>
+                        <tr>
+                          <td><?= htmlspecialchars(date("M d, Y h:i A", strtotime($r['created_at']))) ?></td>
+                          <td class="fw-semibold">#<?= (int)$r['ap_id'] ?></td>
+                          <td><?= $r['purchase_id'] !== null ? '#'.(int)$r['purchase_id'] : '—' ?></td>
+                          <td><?= htmlspecialchars($r['supplier_name'] ?: '—') ?></td>
+                          <td class="text-end">₱<?= number_format((float)$r['total_amount'],2) ?></td>
+                          <td class="text-end">₱<?= number_format((float)$r['amount_paid'],2) ?></td>
+                          <td class="text-end fw-bold">₱<?= number_format((float)$r['balance'],2) ?></td>
+                          <td><?= htmlspecialchars($r['due_date'] ?: '—') ?></td>
+                          <td><span class="badge <?= $badge ?>"><?= htmlspecialchars(strtoupper($st ?: 'N/A')) ?></span></td>
+                        </tr>
+                      <?php endwhile; ?>
+                    <?php else: ?>
+                      <tr><td colspan="9" class="text-center text-muted">No AP records found.</td></tr>
+                    <?php endif; ?>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Supplier Payments (optional table) -->
+            <div class="col-12">
+              <h6 class="fw-bold mb-2 mt-2">
+                <i class="fa-solid fa-money-check-dollar me-1"></i> Supplier Payment Records
+                <span class="badge bg-secondary"><?= $hasSupplierPayments ? "Enabled" : "Not found" ?></span>
+              </h6>
+
+              <?php if(!$hasSupplierPayments): ?>
+                <div class="alert alert-warning mb-0">
+                  supplier_payments table not found. AP payments can still work, but payment history won’t show here.
+                </div>
+              <?php else: ?>
+                <div class="table-responsive">
+                  <table class="table table-striped align-middle mb-0">
+                    <thead class="table-dark">
+                      <tr>
+                        <th>Paid At</th>
+                        <th>AP #</th>
+                        <th>Purchase #</th>
+                        <th>Supplier</th>
+                        <th class="text-end">Amount</th>
+                        <th>Method</th>
+                        <th>Reference #</th>
+                        <th>Note</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <?php if($supplierPayments && $supplierPayments->num_rows>0): ?>
+                        <?php while($r=$supplierPayments->fetch_assoc()): ?>
+                          <tr>
+                            <td><?= htmlspecialchars(date("M d, Y h:i A", strtotime($r['paid_at']))) ?></td>
+                            <td class="fw-semibold">#<?= (int)$r['ap_id'] ?></td>
+                            <td><?= $r['purchase_id'] !== null ? '#'.(int)$r['purchase_id'] : '—' ?></td>
+                            <td><?= htmlspecialchars($r['supplier_name'] ?: '—') ?></td>
+                            <td class="text-end fw-bold">₱<?= number_format((float)$r['amount'],2) ?></td>
+                            <td><?= htmlspecialchars(strtoupper($r['method'] ?? '')) ?></td>
+                            <td><?= htmlspecialchars($r['reference_no'] ?? '—') ?></td>
+                            <td><?= htmlspecialchars($r['note'] ?? '') ?></td>
+                          </tr>
+                        <?php endwhile; ?>
+                      <?php else: ?>
+                        <tr><td colspan="8" class="text-center text-muted">No supplier payments found.</td></tr>
+                      <?php endif; ?>
+                    </tbody>
+                  </table>
+                </div>
+              <?php endif; ?>
             </div>
 
           </div>

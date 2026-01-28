@@ -105,12 +105,13 @@ $current_stock = (float)$currentStockRow['current_stock'];
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
 <style>
-body { background:#f4f6f9; }
+body { background:#f4f6f9; padding-top: 60px;}
 
 /* Sidebar */
 .sidebar {
     min-height:100vh;
     background:#2c3e50;
+    padding-top: 0px;
 }
 .sidebar .nav-link {
     color:#fff;
@@ -142,7 +143,7 @@ body { background:#f4f6f9; }
 .modern-card:hover { transform:translateY(-4px); }
 
 /* Navbar spacing */
-.main-content { padding-top:85px; }
+.main-content { padding-top:0px; }
 
 /* Summary Cards */
 .card-summary{
@@ -169,7 +170,7 @@ body { background:#f4f6f9; }
     <button class="btn btn-outline-dark d-lg-none" data-bs-toggle="collapse" data-bs-target="#sidebarMenu">
       ☰
     </button>
-    <span class="navbar-brand fw-bold ms-2">DO HIVES GENERAL MERCHANDISE</span>
+    <span class="navbar-brand fw-bold ms-2">DE ORO HIYS GENERAL MERCHANDISE</span>
 
     <div class="ms-auto dropdown">
       <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
@@ -204,8 +205,8 @@ body { background:#f4f6f9; }
 </a>
 <div class="collapse show submenu" id="inventoryMenu">
 <a href="../admin/products.php">Products</a>
-<a href="../inventory/add_stock.php">Add Stock</a>
-<a href="../inventory/adjust_stock.php" class="fw-bold">Adjust Stock</a>
+<a href="../inventory/add_stock.php">Stock In (Receiving)</a>
+<a href="../inventory/adjust_stock.php" class="fw-bold">Stock Adjustments</a>
 <a href="../inventory/inventory.php">Inventory Logs</a>
 </div>
 </li>

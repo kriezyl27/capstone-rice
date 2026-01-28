@@ -125,7 +125,7 @@ body{ background:#f4f6f9; }
 
 <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
 <div class="container-fluid">
-<span class="navbar-brand fw-bold">DO HIVES GENERAL MERCHANDISE</span>
+<span class="navbar-brand fw-bold">DE ORO HIYS GENERAL MERCHANDISE</span>
 
 <div class="ms-auto dropdown">
 <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
@@ -199,7 +199,7 @@ body{ background:#f4f6f9; }
 
 <div class="mb-2">
 <label class="form-label">New Password</label>
-<input type="password" class="form-control" name="new_password" required>
+<input type="password" class="form-control" name="new_password" requir  ed>
 </div>
 
 <div class="mb-3">

@@ -91,7 +91,7 @@ FROM sales s
 LEFT JOIN customers c ON s.customer_id = c.customer_id
 LEFT JOIN account_receivable ar ON ar.sales_id = s.sale_id
 {$where}
-ORDER BY s.sale_date DESC
+ORDER BY s.sale_date DESC, s.sale_id DESC
 LIMIT {$perPage} OFFSET {$offset}
 ";
 $stmt = $conn->prepare($listSql);
@@ -103,8 +103,10 @@ $stmt->close();
 /* =========================
 If view details requested
 ========================= */
-$view_id = (int)($_GET['view'] ?? 0);
+$view_id = isset($_GET['view']) ? (int)$_GET['view'] : 0;
 $saleInfo = null;
+$items = null;
+
 $items = [];
 
 if($view_id > 0){
@@ -148,11 +150,11 @@ $stmt->close();
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
 <style>
-body{ background:#f4f6f9; }
-.sidebar{ min-height:100vh; background:#2c3e50; }
+body{ background:#f4f6f9; padding-top: 60px; }
+.sidebar{ min-height:100vh; background:#2c3e50; padding-top: 0px; }
 .sidebar .nav-link{ color:#fff; padding:10px 16px; border-radius:8px; font-size:.95rem; }
 .sidebar .nav-link:hover,.sidebar .nav-link.active{ background:#34495e; }
-.main-content{ padding-top:85px; }
+.main-content{ padding-top:0px; }
 .modern-card{ border-radius:14px; box-shadow:0 6px 16px rgba(0,0,0,.12); }
 .table td,.table th{ vertical-align:middle; }
 </style>
@@ -164,7 +166,7 @@ body{ background:#f4f6f9; }
 <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
 <div class="container-fluid">
 <button class="btn btn-outline-dark d-lg-none" data-bs-toggle="collapse" data-bs-target="#sidebarMenu">☰</button>
-<span class="navbar-brand fw-bold ms-2">DO HIVES GENERAL MERCHANDISE</span>
+<span class="navbar-brand fw-bold ms-2">DE ORO HIYS GENERAL MERCHANDISE</span>
 
 <div class="ms-auto dropdown">
 <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
@@ -189,7 +191,7 @@ body{ background:#f4f6f9; }
 <a class="nav-link" href="dashboard.php"><i class="fas fa-home me-2"></i>Dashboard</a>
 </li>
 <li class="nav-item">
-<a class="nav-link" href="pos.php"><i class="fas fa-cash-register me-2"></i>POS / New Sale</a>
+<a class="nav-link" href="pos.php"><i class="fas fa-cash-register me-2"></i>Sale</a>
 </li>
 <li class="nav-item">
 <a class="nav-link active" href="sales_history.php"><i class="fas fa-receipt me-2"></i>Sales History</a>
@@ -202,6 +204,9 @@ body{ background:#f4f6f9; }
 </li>
 <li class="nav-item">
 <a class="nav-link" href="customers.php"><i class="fas fa-users me-2"></i>Customers</a>
+</li>
+<li class="nav-item">
+<a class="nav-link" href="inventory_view.php"><i class="fas fa-boxes-stacked me-2"></i>Inventory View</a>
 </li>
 </ul>
 </div>
