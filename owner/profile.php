@@ -133,13 +133,7 @@ exit;
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
-<style>
-body { background:#f4f6f9; padding-top:60px; }
-.sidebar { min-height:100vh; background:#2c3e50; }
-.sidebar .nav-link { color:#fff; padding:10px 16px; border-radius:8px; font-size:.95rem; }
-.sidebar .nav-link:hover, .sidebar .nav-link.active { background:#34495e; }
-.modern-card { border-radius:14px; box-shadow:0 6px 16px rgba(0,0,0,.12); }
-</style>
+<link href="../css/layout.css" rel="stylesheet">
 </head>
 <body>
 
@@ -164,26 +158,7 @@ body { background:#f4f6f9; padding-top:60px; }
 <div class="container-fluid">
 <div class="row">
 
-<!-- SIDEBAR -->
-<nav id="sidebarMenu" class="col-lg-2 d-lg-block sidebar collapse">
-<div class="pt-4">
-<ul class="nav flex-column gap-1">
-<li class="nav-item"><a class="nav-link" href="dashboard.php"><i class="fas fa-gauge-high me-2"></i>Owner Dashboard</a></li>
-<li class="nav-item"><a class="nav-link" href="inventory_monitoring.php"><i class="fas fa-boxes-stacked me-2"></i>Inventory Monitoring</a></li>
-<li class="nav-item"><a class="nav-link" href="sales_report.php"><i class="fas fa-receipt me-2"></i>Sales Reports</a></li>
-<li class="nav-item"><a class="nav-link" href="returns_report.php"><i class="fas fa-rotate-left me-2"></i>Returns Report</a></li>
-<li class="nav-item"><a class="nav-link" href="analytics.php"><i class="fas fa-chart-line me-2"></i>Analytics & Forecasting</a></li>
-<li class="nav-item"><a class="nav-link" href="system_logs.php"><i class="fas fa-file-shield me-2"></i>System Logs</a></li>
-<li class="nav-item"><a class="nav-link active" href="profile.php"><i class="fa-solid fa-user me-2"></i>Profile</a></li>
-</ul>
-
-<div class="px-3 mt-4">
-<div class="alert alert-light small mb-0">
-<i class="fa-solid fa-circle-info me-1"></i> Owner access is <b>view-only</b>.
-</div>
-</div>
-</div>
-</nav>
+<?php include '../includes/owner_sidebar.php'; ?>
 
 <!-- MAIN -->
 <main class="col-lg-10 ms-sm-auto px-4">

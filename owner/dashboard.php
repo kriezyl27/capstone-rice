@@ -62,6 +62,46 @@ $pendingReturnsRow = $conn->query("SELECT COUNT(*) AS cnt FROM returns WHERE LOW
 $pendingReturns = $pendingReturnsRow ? (int)$pendingReturnsRow->fetch_assoc()['cnt'] : 0;
 
 /* =========================
+   OVERSTOCK (INTERFACE ONLY)
+   - NO DATABASE MODIFICATION
+========================= */
+$OVERSTOCK_LIMIT_KG = 1000; // change this value if needed
+
+$overCountRow = $conn->query("
+  SELECT COUNT(*) AS cnt
+  FROM (
+    SELECT p.product_id,
+      (
+        IFNULL(SUM(CASE WHEN LOWER(it.type)='in' THEN it.qty_kg ELSE 0 END),0)
+        - IFNULL(SUM(CASE WHEN LOWER(it.type)='out' THEN it.qty_kg ELSE 0 END),0)
+        + IFNULL(SUM(CASE WHEN LOWER(it.type)='adjust' THEN it.qty_kg ELSE 0 END),0)
+      ) AS stock_kg
+    FROM products p
+    LEFT JOIN inventory_transactions it ON it.product_id = p.product_id
+    WHERE IFNULL(p.archived,0)=0
+    GROUP BY p.product_id
+  ) x
+  WHERE stock_kg >= $OVERSTOCK_LIMIT_KG
+");
+$overCount = $overCountRow ? (int)$overCountRow->fetch_assoc()['cnt'] : 0;
+
+$overstockList = $conn->query("
+  SELECT p.product_id, p.variety, p.grade, p.sku,
+    (
+      IFNULL(SUM(CASE WHEN LOWER(it.type)='in' THEN it.qty_kg ELSE 0 END),0)
+      - IFNULL(SUM(CASE WHEN LOWER(it.type)='out' THEN it.qty_kg ELSE 0 END),0)
+      + IFNULL(SUM(CASE WHEN LOWER(it.type)='adjust' THEN it.qty_kg ELSE 0 END),0)
+    ) AS stock_kg
+  FROM products p
+  LEFT JOIN inventory_transactions it ON it.product_id = p.product_id
+  WHERE IFNULL(p.archived,0)=0
+  GROUP BY p.product_id
+  HAVING stock_kg >= $OVERSTOCK_LIMIT_KG
+  ORDER BY stock_kg DESC
+  LIMIT 8
+");
+
+/* =========================
    AR / AP SUMMARY (OWNER)
 ========================= */
 $arRow = $conn->query("
@@ -146,34 +186,7 @@ if(count($salesData) > 0){
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<style>
-body { background:#f4f6f9; padding-top: 60px; }
-
-/* Sidebar */
-.sidebar { min-height:100vh; background:#2c3e50; padding-top: 0; }
-.sidebar .nav-link { color:#fff; padding:10px 16px; border-radius:8px; font-size:.95rem; }
-.sidebar .nav-link:hover, .sidebar .nav-link.active { background:#34495e; }
-.sidebar .submenu { padding-left:35px; }
-.sidebar .submenu a { font-size:.9rem; padding:6px 0; display:block; color:#ecf0f1; text-decoration:none; }
-.sidebar .submenu a:hover { color:#fff; }
-
-/* Cards */
-.modern-card { border-radius:14px; box-shadow:0 6px 16px rgba(0,0,0,.12); transition:.3s; }
-.modern-card:hover { transform:translateY(-4px); }
-
-/* Navbar spacing */
-.main-content { padding-top:0; }
-
-/* Gradients */
-.bg-gradient-primary {background:linear-gradient(135deg,#1d2671,#c33764);}
-.bg-gradient-success {background:linear-gradient(135deg,#11998e,#38ef7d);}
-.bg-gradient-info {background:linear-gradient(135deg,#36d1dc,#5b86e5);}
-.bg-gradient-warning {background:linear-gradient(135deg,#f7971e,#ffd200);}
-.bg-gradient-danger {background:linear-gradient(135deg,#e52d27,#b31217);}
-
-.table td, .table th { padding:0.55rem; vertical-align: middle; }
-.badge-soft { background: rgba(25,135,84,.15); color:#198754; }
-</style>
+<link href="../css/layout.css" rel="stylesheet">
 </head>
 
 <body>
@@ -199,67 +212,7 @@ body { background:#f4f6f9; padding-top: 60px; }
 <div class="container-fluid">
 <div class="row">
 
-<!-- OWNER SIDEBAR -->
-<nav id="sidebarMenu" class="col-lg-2 d-lg-block sidebar collapse">
-  <div class="pt-4">
-    <ul class="nav flex-column gap-1">
-
-      <li class="nav-item">
-        <a class="nav-link active" href="dashboard.php">
-          <i class="fas fa-gauge-high me-2"></i>Owner Dashboard
-        </a>
-      </li>
-
-      <li class="nav-item">
-        <a class="nav-link" href="inventory_monitoring.php">
-          <i class="fas fa-boxes-stacked me-2"></i>Inventory Monitoring
-        </a>
-      </li>
-
-      <li class="nav-item">
-        <a class="nav-link" href="sales_report.php">
-          <i class="fas fa-receipt me-2"></i>Sales Reports
-        </a>
-      </li>
-
-      <li class="nav-item">
-        <a class="nav-link" data-bs-toggle="collapse" href="#financeMenu">
-          <i class="fas fa-coins me-2"></i>Finance
-          <i class="fas fa-chevron-down float-end"></i>
-        </a>
-        <div class="collapse submenu" id="financeMenu">
-          <a href="../owner/supplier_payables.php">Supplier Payables</a>
-        </div>
-      </li>
-
-      <li class="nav-item">
-        <a class="nav-link" href="returns_report.php">
-          <i class="fas fa-rotate-left me-2"></i>Returns Report
-        </a>
-      </li>
-
-      <li class="nav-item">
-        <a class="nav-link" href="analytics.php">
-          <i class="fas fa-chart-line me-2"></i>Analytics & Forecasting
-        </a>
-      </li>
-
-      <li class="nav-item">
-        <a class="nav-link" href="system_logs.php">
-          <i class="fas fa-file-shield me-2"></i>System Logs
-        </a>
-      </li>
-
-    </ul>
-
-    <div class="px-3 mt-4">
-      <div class="alert alert-light small mb-0">
-        <i class="fa-solid fa-circle-info me-1"></i>
-        Owner access is <b>monitoring + finance approval</b>.
-      </div>
-    </div>
-  </div>
-</nav>
+<?php include '../includes/owner_sidebar.php'; ?>
 
 <!-- MAIN CONTENT -->
 <main class="col-lg-10 ms-sm-auto px-4 main-content">
@@ -297,6 +250,20 @@ body { background:#f4f6f9; padding-top: 60px; }
             <div class="display-6 fw-bold"><?= number_format($totalStock,2) ?> <small class="fs-6">kg</small></div>
           </div>
           <i class="fas fa-warehouse fa-3x opacity-75"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- OVERSTOCK CARD (ADDED) -->
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="card modern-card bg-gradient-danger text-white p-4">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <div class="fw-light">Overstock Items</div>
+            <div class="display-6 fw-bold"><?= $overCount ?></div>
+            <div class="small opacity-75">Limit: <?= number_format($OVERSTOCK_LIMIT_KG,0) ?> kg</div>
+          </div>
+          <i class="fas fa-triangle-exclamation fa-3x opacity-75"></i>
         </div>
       </div>
     </div>
@@ -487,6 +454,49 @@ body { background:#f4f6f9; padding-top: 60px; }
               <?php endwhile; ?>
             <?php else: ?>
               <tr><td colspan="6" class="text-center text-muted">No inventory transactions yet.</td></tr>
+            <?php endif; ?>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- OVERSTOCK LIST (ADDED) -->
+  <div class="card modern-card mt-4">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+        <h5 class="fw-bold mb-0">Overstocked Items</h5>
+        <span class="text-muted small">Threshold: <?= number_format($OVERSTOCK_LIMIT_KG,0) ?> kg</span>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-striped align-middle mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th>Product</th>
+              <th>SKU</th>
+              <th class="text-end">Stock (kg)</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php if($overstockList && $overstockList->num_rows > 0): ?>
+              <?php while($r = $overstockList->fetch_assoc()): ?>
+                <?php
+                  $prod2 = trim(($r['variety'] ?? 'N/A') . " - " . ($r['grade'] ?? ''));
+                  $sku2 = $r['sku'] ?? '';
+                  $stockKg2 = (float)($r['stock_kg'] ?? 0);
+                ?>
+                <tr>
+                  <td><?= htmlspecialchars($prod2) ?></td>
+                  <td><?= htmlspecialchars($sku2) ?></td>
+                  <td class="text-end fw-bold"><?= number_format($stockKg2,2) ?></td>
+                  <td><span class="badge bg-danger">OVERSTOCK</span></td>
+                </tr>
+              <?php endwhile; ?>
+            <?php else: ?>
+              <tr><td colspan="4" class="text-center text-muted">No overstock items.</td></tr>
             <?php endif; ?>
           </tbody>
         </table>

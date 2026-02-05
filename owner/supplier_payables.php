@@ -339,50 +339,32 @@ if($view_ap_id > 0){
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
-<style>
-body { background:#f4f6f9; padding-top:70px; }
-.modern-card { border-radius:14px; box-shadow:0 6px 16px rgba(0,0,0,.12); }
-.table td, .table th { vertical-align: middle; }
-.small-muted { font-size:.9rem; color:#6c757d; }
-
-.badge-unapproved { background:#6c757d; }
-.badge-approved { background:#0d6efd; }
-
-.badge-paid { background:#198754; }
-.badge-partial { background:#fd7e14; }
-.badge-unpaid { background:#dc3545; }
-.badge-overdue { background:#b02a37; }
-
-.card-kpi h6{ margin:0; opacity:.9; font-weight:600; }
-.card-kpi h3{ margin:0; font-weight:800; }
-
-.kpi-sub { font-size:.85rem; opacity:.85; }
-
-.nav-pills .nav-link{ border-radius:999px; }
-</style>
+<link href="../css/layout.css" rel="stylesheet">
 </head>
 <body>
 
-<!-- Top Navbar -->
 <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
   <div class="container-fluid">
-    <a class="navbar-brand fw-bold ms-2" href="../owner/dashboard.php">
-      <i class="fa-solid fa-coins me-2"></i>Finance • Supplier Payables
-    </a>
-
+    <button class="btn btn-outline-dark d-lg-none" data-bs-toggle="collapse" data-bs-target="#sidebarMenu">☰</button>
+    <span class="navbar-brand fw-bold ms-2">DE ORO HIYS GENERAL MERCHANDISE</span>
     <div class="ms-auto dropdown">
-      <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">
+      <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
         <?= htmlspecialchars($username) ?> <small class="text-muted">(Owner)</small>
       </a>
       <ul class="dropdown-menu dropdown-menu-end">
-        <li><a class="dropdown-item" href="../owner/dashboard.php"><i class="fa-solid fa-gauge-high me-2"></i>Owner Dashboard</a></li>
         <li><a class="dropdown-item text-danger" href="../logout.php"><i class="fa-solid fa-right-from-bracket me-2"></i>Logout</a></li>
       </ul>
     </div>
   </div>
 </nav>
 
-<div class="container-fluid px-4">
+<div class="container-fluid">
+<div class="row">
+
+<?php include '../includes/owner_sidebar.php'; ?>
+
+<main class="col-lg-10 ms-sm-auto px-4 main-content">
+<div class="py-4"></div>
 
   <?php if($success): ?>
     <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>

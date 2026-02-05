@@ -37,7 +37,10 @@ function pos_save_old($customer_id, $sale_type, $due_date){
   ];
 }
 
-/* Auto compute due date based on kinsenas: 2, 15, 25, 30 */
+/*
+AUTO compute due date based on kinsenas: 2, 15, 25, 30
+✅ NEXT KINSENAS ONLY (dili pwede today)
+*/
 function compute_kinsenas_due_date(): string {
   $today = new DateTime(); // server date/time
   $year  = (int)$today->format('Y');
@@ -45,14 +48,15 @@ function compute_kinsenas_due_date(): string {
   $day   = (int)$today->format('d');
 
   $kinsenas = [2, 15, 25, 30];
+  $lastDayThisMonth = (int)$today->format('t');
 
-  // Find next upcoming kinsenas in this month
   foreach ($kinsenas as $kday) {
-    if ($day <= $kday) {
-      $lastDay = (int)$today->format('t'); // last day of this month
-      if ($kday <= $lastDay) {
-        return sprintf('%04d-%02d-%02d', $year, $month, $kday);
-      }
+    $realKday = $kday;
+    if ($realKday > $lastDayThisMonth) $realKday = $lastDayThisMonth;
+
+    // ✅ strictly greater than today
+    if ($day < $realKday) {
+      return sprintf('%04d-%02d-%02d', $year, $month, $realKday);
     }
   }
 
@@ -150,7 +154,7 @@ if(isset($_POST['checkout'])){
   $sale_type = strtolower(trim($_POST['sale_type'] ?? 'cash')); // cash | utang
   $status = ($sale_type === 'utang') ? 'unpaid' : 'paid';
 
-  // AUTO due date for utang (kinsenas 2,15,25,30)
+  // AUTO due date for utang (NEXT kinsenas only)
   $due_date_post = '';
   if($sale_type === 'utang'){
     $due_date_post = compute_kinsenas_due_date();
@@ -240,7 +244,7 @@ if(isset($_POST['checkout'])){
         throw new Exception("Insufficient stock for product ID {$it['product_id']}. Available: ".number_format($stock_now,2)." kg");
       }
 
-      // sales_items (INSERT ONCE — removed duplicate insert bug)
+      // sales_items (INSERT ONCE)
       $stmt = $conn->prepare("
         INSERT INTO sales_items (sale_id, product_id, qty_kg, unit_price, line_total)
         VALUES (?, ?, ?, ?, ?)
@@ -256,7 +260,6 @@ if(isset($_POST['checkout'])){
           (product_id, qty_kg, reference_id, reference_type, type, note, created_at)
         VALUES (?, ?, ?, 'sale', 'out', ?, NOW())
       ");
-      // product_id int, qty_kg double, reference_id int, note string => "idis"
       $stmt->bind_param("idis", $it['product_id'], $it['qty_kg'], $sale_id, $note);
       $stmt->execute();
       $stmt->close();
@@ -267,7 +270,6 @@ if(isset($_POST['checkout'])){
       $amount_paid = 0.0;
       $balance = $total_amount;
 
-      // due date always auto-computed; validate format anyway
       $due_date = $due_date_post ?: null;
       if($due_date && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $due_date)){
         $due_date = null;
@@ -305,14 +307,12 @@ if(isset($_POST['checkout'])){
     $stmt->execute();
     $stmt->close();
 
-    // On SUCCESS: page refresh clears everything (new transaction)
-    header("Location: pos.php?success=" . urlencode("Sale recorded successfully. Sale #{$sale_id}"));
+    header("Location: receipt.php?sale_id=".(int)$sale_id);
     exit;
 
   } catch (Exception $e){
     $conn->rollback();
 
-    // Preserve only customer/type/due date; items will reset (as instructor wants)
     pos_save_old($customer_id, $sale_type, $due_date_post);
 
     header("Location: pos.php?error=" . urlencode($e->getMessage()));
@@ -325,21 +325,13 @@ if(isset($_POST['checkout'])){
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>POS | Cashier</title>
+<title>Sale | Cashier</title>
 
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
-<style>
-body{ background:#f4f6f9; padding-top:60px; }
-.sidebar{ min-height:100vh; background:#2c3e50; padding-top: 0px; }
-.sidebar .nav-link{ color:#fff; padding:10px 16px; border-radius:8px; font-size:.95rem; }
-.sidebar .nav-link:hover,.sidebar .nav-link.active{ background:#34495e; }
-.main-content{ padding-top:0px; }
-.modern-card{ border-radius:14px; box-shadow:0 6px 16px rgba(0,0,0,.12); }
-.table td,.table th{ vertical-align:middle; }
-.small-muted{ color:#6c757d; font-size:.85rem; }
-</style>
+<link href="../css/layout.css" rel="stylesheet">
+
 </head>
 
 <body>
@@ -365,21 +357,8 @@ body{ background:#f4f6f9; padding-top:60px; }
 <div class="container-fluid">
   <div class="row">
 
-    <!-- CASHIER SIDEBAR -->
-    <nav id="sidebarMenu" class="col-lg-2 d-lg-block sidebar collapse">
-      <div class="pt-4">
-        <ul class="nav flex-column gap-1 px-2">
-          <li class="nav-item"><a class="nav-link" href="dashboard.php"><i class="fas fa-home me-2"></i>Dashboard</a></li>
-          <li class="nav-item"><a class="nav-link active" href="pos.php"><i class="fas fa-cash-register me-2"></i>Sale</a></li>
-          <li class="nav-item"><a class="nav-link" href="sales_history.php"><i class="fas fa-receipt me-2"></i>Sales History</a></li>
-          <li class="nav-item"><a class="nav-link" href="payments.php"><i class="fas fa-hand-holding-dollar me-2"></i>Utang Payments</a></li>
-          <li class="nav-item"><a class="nav-link" href="returns.php"><i class="fas fa-rotate-left me-2"></i>Returns</a></li>
-          <li class="nav-item"><a class="nav-link" href="customers.php"><i class="fas fa-users me-2"></i>Customers</a></li>
-          <li class="nav-item"><a class="nav-link" href="inventory_view.php"><i class="fas fa-boxes-stacked me-2"></i>Inventory View</a></li>
-        </ul>
-      </div>
-    </nav>
-
+   <?php include '../includes/cashier_sidebar.php'; ?>
+   
     <!-- MAIN -->
     <main class="col-lg-10 ms-sm-auto px-4 main-content">
       <div class="py-4">
@@ -431,9 +410,6 @@ body{ background:#f4f6f9; padding-top:60px; }
                   <div class="mb-3 d-none" id="dueDateWrap">
                     <label class="form-label fw-semibold">Auto Due Date (Kinsenas)</label>
                     <input type="text" class="form-control" id="dueDateText" readonly value="<?= h($old_due_date ?: '—') ?>">
-                    <div class="small-muted mt-1">
-                      System-generated due date based on kinsenas: <b>2, 15, 25, 30</b>.
-                    </div>
                   </div>
 
                   <hr>
@@ -545,7 +521,10 @@ function formatISODate(y, m, d){
   return `${y}-${mm}-${dd}`;
 }
 
-// Client display only (server still enforces due date)
+/*
+Client display only (server still enforces due date)
+✅ NEXT kinsenas only (dili pwede today)
+*/
 function computeKinsenasDueDateClient(){
   const now = new Date();
   const year = now.getFullYear();
@@ -558,8 +537,12 @@ function computeKinsenasDueDateClient(){
   const lastDay = new Date(year, monthIndex + 1, 0).getDate();
 
   for (const k of kinsenas){
-    if(day <= k && k <= lastDay){
-      return formatISODate(year, monthIndex + 1, k);
+    let kk = k;
+    if (kk > lastDay) kk = lastDay;
+
+    // ✅ strictly greater than today
+    if(day < kk){
+      return formatISODate(year, monthIndex + 1, kk);
     }
   }
 
@@ -685,4 +668,3 @@ toggleDueDate();
 
 </body>
 </html>
-```

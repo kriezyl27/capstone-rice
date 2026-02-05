@@ -51,15 +51,7 @@ $result = $conn->query($sql);
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
-<style>
-body{ background:#f4f6f9; padding-top: 60px; }
-.sidebar{ min-height:100vh; background:#2c3e50; padding-top: 0px; }
-.sidebar .nav-link{ color:#fff; padding:10px 16px; border-radius:8px; font-size:.95rem; }
-.sidebar .nav-link:hover,.sidebar .nav-link.active{ background:#34495e; }
-.main-content{ padding-top:0px; }
-.modern-card{ border-radius:14px; box-shadow:0 6px 16px rgba(0,0,0,.12); }
-.table td,.table th{ vertical-align:middle; }
-</style>
+<link href="../css/layout.css" rel="stylesheet">
 </head>
 
 <body>
@@ -85,36 +77,7 @@ body{ background:#f4f6f9; padding-top: 60px; }
 <div class="container-fluid">
 <div class="row">
 
-<!-- SIDEBAR -->
-<nav id="sidebarMenu" class="col-lg-2 d-lg-block sidebar collapse">
-<div class="pt-4">
-<ul class="nav flex-column gap-1 px-2">
-<li class="nav-item">
-<a class="nav-link" href="dashboard.php"><i class="fas fa-home me-2"></i>Dashboard</a>
-</li>
-<li class="nav-item">
-<a class="nav-link" href="pos.php"><i class="fas fa-cash-register me-2"></i>Sale</a>
-</li>
-<li class="nav-item">
-<a class="nav-link" href="sales_history.php"><i class="fas fa-receipt me-2"></i>Sales History</a>
-</li>
-<li class="nav-item">
-<a class="nav-link" href="payments.php"><i class="fas fa-hand-holding-dollar me-2"></i>Utang Payments</a>
-</li>
-<li class="nav-item">
-<a class="nav-link" href="returns.php"><i class="fas fa-rotate-left me-2"></i>Returns</a>
-</li>
-<li class="nav-item">
-    <a class="nav-link" href="customers.php"><i class="fas fa-users me-2"></i>Customers</a>
-</li>
-<li class="nav-item">
-<a class="nav-link active" href="inventory_view.php">
-<i class="fas fa-boxes-stacked me-2"></i>Inventory View
-</a>
-</li>
-</ul>
-</div>
-</nav>
+<?php include '../includes/cashier_sidebar.php'; ?>
 
 <!-- MAIN CONTENT -->
 <main class="col-lg-10 ms-sm-auto px-4 main-content">

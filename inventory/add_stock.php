@@ -12,6 +12,13 @@ include '../config/db.php';
 
 $error = "";
 
+/* =========================
+   ✅ ADDED: OVERSTOCK LIMIT (INTERFACE RULE)
+   - No DB changes
+   - You can adjust this number anytime
+========================= */
+$OVERSTOCK_LIMIT_KG = 1000; // warehouse max capacity per product (kg)
+
 /**
  * ✅ AJAX: Add Supplier (modal)
  */
@@ -95,70 +102,105 @@ if($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['ajax'])){
         $error = "Unit cost must be 0 or higher.";
     } else {
 
-        // Compute total amount (AP basis)
-        $total_amount = $qty_kg * $unit_cost;
-
-        // If no due date provided AND total_amount > 0, default to +7 days
-        // If total_amount == 0, due_date is irrelevant (no payable created)
-        if(!$due_date && $total_amount > 0){
-            $due_date = date('Y-m-d', strtotime($purchase_date . ' +7 days'));
+        /* =========================
+           ✅ ADDED: CHECK CURRENT STOCK + OVERSTOCK LIMIT
+           current_stock = SUM(IN) - SUM(OUT) + SUM(ADJUST)
+        ========================= */
+        $currentStockKg = 0.0;
+        $stmtS = $conn->prepare("
+            SELECT IFNULL(SUM(
+                CASE
+                    WHEN LOWER(type)='in' THEN qty_kg
+                    WHEN LOWER(type)='out' THEN -qty_kg
+                    WHEN LOWER(type)='adjust' THEN qty_kg
+                    ELSE 0
+                END
+            ),0) AS stock_kg
+            FROM inventory_transactions
+            WHERE product_id = ?
+        ");
+        if($stmtS){
+            $stmtS->bind_param("i", $product_id);
+            $stmtS->execute();
+            $rowS = $stmtS->get_result()->fetch_assoc();
+            $stmtS->close();
+            $currentStockKg = (float)($rowS['stock_kg'] ?? 0);
         }
 
-        $conn->begin_transaction();
-        try {
-            // 1) Create purchase
-            $purchase_status = 'received';
+        $projected = $currentStockKg + $qty_kg;
 
-            $stmtP = $conn->prepare("
-                INSERT INTO purchases (supplier_id, purchase_date, total_amount, status, created_by, created_at)
-                VALUES (?, ?, ?, ?, ?, NOW())
-            ");
-            if(!$stmtP){ throw new Exception("Prepare failed (purchases): ".$conn->error); }
-            $stmtP->bind_param("isdsi", $supplier_id, $purchase_date, $total_amount, $purchase_status, $user_id);
-            $stmtP->execute();
-            $purchase_id = (int)$conn->insert_id;
-            $stmtP->close();
+        if($projected > $OVERSTOCK_LIMIT_KG){
+            $error = "Cannot receive stock. This will exceed the warehouse limit.\n"
+                   . "Current stock: " . number_format($currentStockKg,2) . " kg\n"
+                   . "Incoming: " . number_format($qty_kg,2) . " kg\n"
+                   . "Projected: " . number_format($projected,2) . " kg\n"
+                   . "Limit: " . number_format($OVERSTOCK_LIMIT_KG,2) . " kg";
+        } else {
 
-            // 2) Create Accounts Payable ONLY IF total_amount > 0
-            // This prevents "₱0 unpaid" payables from appearing in supplier_payables.php
-            if($total_amount > 0){
-                $amount_paid = 0.00;
-                $balance     = $total_amount;
-                $ap_status   = 'unpaid';
+            // Compute total amount (AP basis)
+            $total_amount = $qty_kg * $unit_cost;
 
-                $stmtAP = $conn->prepare("
-                    INSERT INTO account_payable
-                      (purchase_id, supplier_id, total_amount, amount_paid, balance, due_date, status, approved, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, NOW())
-                ");
-                if(!$stmtAP){ throw new Exception("Prepare failed (account_payable): ".$conn->error); }
-                $stmtAP->bind_param("iidddss", $purchase_id, $supplier_id, $total_amount, $amount_paid, $balance, $due_date, $ap_status);
-                $stmtAP->execute();
-                $stmtAP->close();
+            // If no due date provided AND total_amount > 0, default to +7 days
+            // If total_amount == 0, due_date is irrelevant (no payable created)
+            if(!$due_date && $total_amount > 0){
+                $due_date = date('Y-m-d', strtotime($purchase_date . ' +7 days'));
             }
 
-            // 3) Log inventory transaction (IN)
-            $reference_type = 'purchase';
-            $type = 'in';
-            if($note === "") $note = "Stock received (Receiving)";
+            $conn->begin_transaction();
+            try {
+                // 1) Create purchase
+                $purchase_status = 'received';
 
-            $stmt2 = $conn->prepare("
-                INSERT INTO inventory_transactions
-                    (product_id, qty_kg, reference_id, reference_type, type, note, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, NOW())
-            ");
-            if(!$stmt2){ throw new Exception("Prepare failed (inventory_transactions): ".$conn->error); }
-            $stmt2->bind_param("idisss", $product_id, $qty_kg, $purchase_id, $reference_type, $type, $note);
-            $stmt2->execute();
-            $stmt2->close();
+                $stmtP = $conn->prepare("
+                    INSERT INTO purchases (supplier_id, purchase_date, total_amount, status, created_by, created_at)
+                    VALUES (?, ?, ?, ?, ?, NOW())
+                ");
+                if(!$stmtP){ throw new Exception("Prepare failed (purchases): ".$conn->error); }
+                $stmtP->bind_param("isdsi", $supplier_id, $purchase_date, $total_amount, $purchase_status, $user_id);
+                $stmtP->execute();
+                $purchase_id = (int)$conn->insert_id;
+                $stmtP->close();
 
-            $conn->commit();
-            header("Location: add_stock.php?success=received");
-            exit;
+                // 2) Create Accounts Payable ONLY IF total_amount > 0
+                if($total_amount > 0){
+                    $amount_paid = 0.00;
+                    $balance     = $total_amount;
+                    $ap_status   = 'unpaid';
 
-        } catch (Exception $e) {
-            $conn->rollback();
-            $error = "Failed to receive stock: " . $e->getMessage();
+                    $stmtAP = $conn->prepare("
+                        INSERT INTO account_payable
+                          (purchase_id, supplier_id, total_amount, amount_paid, balance, due_date, status, approved, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 0, NOW())
+                    ");
+                    if(!$stmtAP){ throw new Exception("Prepare failed (account_payable): ".$conn->error); }
+                    $stmtAP->bind_param("iidddss", $purchase_id, $supplier_id, $total_amount, $amount_paid, $balance, $due_date, $ap_status);
+                    $stmtAP->execute();
+                    $stmtAP->close();
+                }
+
+                // 3) Log inventory transaction (IN)
+                $reference_type = 'purchase';
+                $type = 'in';
+                if($note === "") $note = "Stock received (Receiving)";
+
+                $stmt2 = $conn->prepare("
+                    INSERT INTO inventory_transactions
+                        (product_id, qty_kg, reference_id, reference_type, type, note, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, NOW())
+                ");
+                if(!$stmt2){ throw new Exception("Prepare failed (inventory_transactions): ".$conn->error); }
+                $stmt2->bind_param("idisss", $product_id, $qty_kg, $purchase_id, $reference_type, $type, $note);
+                $stmt2->execute();
+                $stmt2->close();
+
+                $conn->commit();
+                header("Location: add_stock.php?success=received");
+                exit;
+
+            } catch (Exception $e) {
+                $conn->rollback();
+                $error = "Failed to receive stock: " . $e->getMessage();
+            }
         }
     }
 }
@@ -280,7 +322,7 @@ body { background:#f4f6f9;  padding-top: 60px; }
 <h2 class="mb-3">Stock In (Receiving)</h2>
 
 <?php if($error): ?>
-  <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
+  <div class="alert alert-danger" style="white-space: pre-line;"><?= htmlspecialchars($error) ?></div>
 <?php endif; ?>
 
 <?php if(isset($_GET['success']) && $_GET['success'] === 'received'): ?>
@@ -361,6 +403,10 @@ body { background:#f4f6f9;  padding-top: 60px; }
         <button type="submit" class="btn btn-primary mt-3">
           <i class="fas fa-arrow-down"></i> Receive Stock
         </button>
+
+        <div class="form-text mt-2">
+          Warehouse limit rule: <b><?= number_format($OVERSTOCK_LIMIT_KG,2) ?> kg</b> per product.
+        </div>
     </form>
   </div>
 </div>

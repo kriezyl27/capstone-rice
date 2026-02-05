@@ -10,6 +10,12 @@ $user_id = (int)($_SESSION['user_id'] ?? 0);
 
 include '../config/db.php';
 
+$activePage  = 'products';      // highlights Inventory section
+$profileLink = 'profile.php';
+$logoutLink  = '../logout.php';
+
+$message = "";
+
 if($role !== 'admin'){
     header("Location: dashboard.php");
     exit;
@@ -128,134 +134,58 @@ if(!$products){
     die("Query Error: " . $conn->error);
 }
 
-// Low stock threshold (change if your instructor gave a specific number)
+// Low stock threshold
 $LOW_STOCK_THRESHOLD = 10; // kg
+
+/* =========================
+   ✅ ADDED: OVERSTOCK THRESHOLD (INTERFACE ONLY)
+   No DB changes
+========================= */
+$OVERSTOCK_THRESHOLD = 1000; // kg (change if needed)
+
+// ✅ ADDED: overstock items list for modal (computed from fetched rows)
+$overItems = [];
+if($products && $products->num_rows > 0){
+    // we'll collect rows first so we can still loop later
+    $allRows = [];
+    while($r = $products->fetch_assoc()){
+        $allRows[] = $r;
+        $st = (float)$r['stock_kg'];
+        if($st >= $OVERSTOCK_THRESHOLD){
+            $overItems[] = [
+                'product' => ($r['variety'].' - '.$r['grade']),
+                'sku' => $r['sku'],
+                'stock' => $st
+            ];
+        }
+    }
+    // ✅ restore rows for the table loop
+    $products = $allRows;
+} else {
+    $products = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Products | DOHIVES</title>
+<title>Products | DO HIYS</title>
 
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
-<style>
-body { background:#f4f6f9;  padding-top: 60px;  }
-
-/* Sidebar */
-.sidebar {
-    min-height:100vh;
-    background:#2c3e50;
-    padding-top: 0px;
-}
-.sidebar .nav-link {
-    color:#fff;
-    padding:10px 16px;
-    border-radius:8px;
-    font-size:.95rem;
-}
-.sidebar .nav-link:hover,
-.sidebar .nav-link.active { background:#34495e; }
-
-/* Dropdown submenu */
-.sidebar .submenu { padding-left:35px; }
-.sidebar .submenu a {
-    font-size:.9rem;
-    padding:6px 0;
-    display:block;
-    color:#ecf0f1;
-    text-decoration:none;
-}
-.sidebar .submenu a:hover { color:#fff; }
-
-/* Cards */
-.modern-card {
-    border-radius:14px;
-    box-shadow:0 6px 16px rgba(0,0,0,.12);
-    transition:.3s;
-}
-.modern-card:hover { transform:translateY(-4px); }
-
-/* Navbar spacing */
-.main-content { padding-top:0px; }
-</style>
+<link href="../css/layout.css" rel="stylesheet">
 </head>
+
 <body>
 
-<!-- TOP NAVBAR -->
-<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
-  <div class="container-fluid">
-    <button class="btn btn-outline-dark d-lg-none" data-bs-toggle="collapse" data-bs-target="#sidebarMenu">
-      ☰
-    </button>
-    <span class="navbar-brand fw-bold ms-2">DE ORO HIYS GENERAL MERCHANDISE</span>
-
-    <div class="ms-auto dropdown">
-      <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
-        <?= htmlspecialchars($username) ?>
-      </a>
-      <ul class="dropdown-menu dropdown-menu-end">
-        <li><a class="dropdown-item" href="profile.php">Profile</a></li>
-        <li><a class="dropdown-item text-danger" href="logout.php">Logout</a></li>
-      </ul>
-    </div>
-  </div>
-</nav>
+<?php include '../includes/topnav.php'; ?>
 
 <div class="container-fluid">
 <div class="row">
 
-<!-- SIDEBAR -->
-<nav id="sidebarMenu" class="col-lg-2 d-lg-block sidebar collapse">
-<div class="pt-4">
-<ul class="nav flex-column gap-1">
-
-<li class="nav-item">
-<a class="nav-link" href="dashboard.php">
-<i class="fas fa-home me-2"></i>Dashboard
-</a>
-</li>
-
-<li class="nav-item">
-<a class="nav-link active" data-bs-toggle="collapse" href="#inventoryMenu">
-<i class="fas fa-warehouse me-2"></i>Inventory
-<i class="fas fa-chevron-down float-end"></i>
-</a>
-<div class="collapse show submenu" id="inventoryMenu">
-<a href="products.php" class="fw-bold">Products</a>
-<a href="../inventory/add_stock.php">Stock In (Receiving)</a>
-<a href="../inventory/adjust_stock.php">Stock Adjustments</a>
-<a href="../inventory/inventory.php">Inventory Logs</a>
-</div>
-</li>
-
-<li class="nav-item">
-<a class="nav-link" href="users.php"><i class="fas fa-users me-2"></i>User Management</a>
-</li>
-
-<li class="nav-item">
-<a class="nav-link" href="sales.php">
-<i class="fas fa-cash-register me-2"></i>Sales
-</a>
-</li>
-
-<li class="nav-item">
-<a class="nav-link" href="analytics.php">
-<i class="fas fa-chart-line me-2"></i>Analytics & Forecasting
-</a>
-</li>
-
-<li class="nav-item">
-<a class="nav-link" href="system_logs.php">
-<i class="fas fa-archive me-2"></i>System Logs
-</a>
-</li>
-
-</ul>
-</div>
-</nav>
+<?php include '../includes/admin_sidebar.php'; ?>
 
 <!-- Main Content -->
 <main class="col-lg-10 ms-sm-auto px-4 main-content">
@@ -298,19 +228,31 @@ body { background:#f4f6f9;  padding-top: 60px;  }
 </thead>
 <tbody>
 
-<?php while($row = $products->fetch_assoc()): ?>
+<?php if(count($products) > 0): ?>
+<?php foreach($products as $row): ?>
 <?php
   $stock = (float)$row['stock_kg'];
-  $lowBadge = ($stock <= $LOW_STOCK_THRESHOLD)
-    ? "<span class='badge bg-danger ms-2'>LOW</span>"
-    : "<span class='badge bg-success ms-2'>OK</span>";
+
+  // ✅ ADDED: Status badges
+  if($stock <= 0){
+    $statusBadge = "<span class='badge bg-secondary ms-2'>OUT</span>";
+  } elseif($stock >= $OVERSTOCK_THRESHOLD){
+    $statusBadge = "<span class='badge bg-danger ms-2'>OVER</span>";
+  } elseif($stock <= $LOW_STOCK_THRESHOLD){
+    $statusBadge = "<span class='badge bg-danger ms-2'>LOW</span>";
+  } else {
+    $statusBadge = "<span class='badge bg-success ms-2'>OK</span>";
+  }
+
+  // ✅ ADDED: row highlight
+  $rowClass = ($stock >= $OVERSTOCK_THRESHOLD) ? "table-danger" : (($stock <= $LOW_STOCK_THRESHOLD) ? "table-warning" : "");
 ?>
-<tr>
+<tr class="<?= $rowClass ?>">
 <td><?= (int)$row['product_id'] ?></td>
 <td><?= htmlspecialchars($row['variety']) ?></td>
 <td><?= htmlspecialchars($row['grade']) ?></td>
 <td><?= htmlspecialchars($row['sku']) ?></td>
-<td><?= number_format($stock,2) ?><?= $lowBadge ?></td>
+<td><?= number_format($stock,2) ?><?= $statusBadge ?></td>
 <td><?= number_format((float)$row['unit_price'],2) ?></td>
 <td><?= htmlspecialchars($row['delivery_date']) ?></td>
 <td><span class="badge bg-primary">Active</span></td>
@@ -380,15 +322,63 @@ body { background:#f4f6f9;  padding-top: 60px;  }
 </div>
 </div>
 </div>
-<?php endwhile; ?>
-
-<?php if($products->num_rows===0): ?>
+<?php endforeach; ?>
+<?php else: ?>
 <tr><td colspan="9" class="text-center text-muted">No active products found.</td></tr>
 <?php endif; ?>
 
 </tbody>
 </table>
 </div>
+
+<!-- ✅ ADDED: OVERSTOCK MODAL (AUTO POPUP) -->
+<?php if(count($overItems) > 0): ?>
+<div class="modal fade" id="overStockModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold">Overstock Alert</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="alert alert-danger mb-3">
+          There are <?= count($overItems) ?> product(s) at or above <?= number_format($OVERSTOCK_THRESHOLD,2) ?> kg.
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-sm table-striped align-middle mb-0">
+            <thead class="table-dark">
+              <tr>
+                <th>Product</th>
+                <th>SKU</th>
+                <th class="text-end">Stock (kg)</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach($overItems as $oi): ?>
+                <tr>
+                  <td class="fw-semibold"><?= htmlspecialchars($oi['product']) ?></td>
+                  <td><?= htmlspecialchars($oi['sku']) ?></td>
+                  <td class="text-end fw-bold"><?= number_format((float)$oi['stock'],2) ?></td>
+                  <td><span class="badge bg-danger">OVERSTOCK</span></td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-outline-dark" type="button" data-bs-dismiss="modal">Close</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <!-- Add Product Modal -->
 <div class="modal fade" id="addProductModal" tabindex="-1">
@@ -444,6 +434,16 @@ body { background:#f4f6f9;  padding-top: 60px;  }
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const overEl = document.getElementById("overStockModal");
+  if(overEl){
+    new bootstrap.Modal(overEl, { backdrop:'static', keyboard:false }).show();
+  }
+});
+</script>
+
 </main>
 </div>
 </div>
